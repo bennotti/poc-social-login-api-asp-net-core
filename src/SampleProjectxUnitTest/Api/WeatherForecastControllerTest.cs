@@ -2,8 +2,6 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Newtonsoft.Json;
 using SampleProject.Api;
-using SampleProject.Core.BusinessRules.Interfaces;
-using SampleProjectLib;
 using System;
 using System.Collections.Generic;
 using System.Linq;

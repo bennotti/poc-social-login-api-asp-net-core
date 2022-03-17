@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.HttpsPolicy;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
@@ -10,7 +12,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using SampleProject.Core.Settings;
-using SampleProject.Infrastructure.Middleware;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -33,12 +34,25 @@ namespace SampleProject.Api
             services.AddControllers();
             services.AddTransient<Random>();
 
+            services.Configure<ForwardedHeadersOptions>(options =>
+            {
+                options.ForwardedHeaders =
+                    ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+            });
+            services.AddCors();
+
             var jwtSettings = new JwtSettings();
             new ConfigureFromConfigurationOptions<JwtSettings>(Configuration.GetSection("JwtSettings")).Configure(jwtSettings);
             services.AddSingleton(jwtSettings);
             var key = Encoding.ASCII.GetBytes(jwtSettings.Secret);
 
-            services.AddAuthorization();
+            services.AddAuthorization(options =>
+            {
+                options.DefaultPolicy = new AuthorizationPolicyBuilder()
+                    .RequireAuthenticatedUser()
+                    .AddAuthenticationSchemes("Google", "Bearer")
+                    .Build();
+            });
             services.AddAuthentication(options => {
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
                 options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -53,6 +67,12 @@ namespace SampleProject.Api
                     ValidateIssuer = false,
                     ValidateAudience = false
                 };
+            })
+            .AddGoogle("Google",googleOptions =>
+            {
+                //googleOptions.SignInScheme = "Google";
+                googleOptions.ClientId = "";
+                googleOptions.ClientSecret = "";
             });
         }
 
@@ -64,13 +84,20 @@ namespace SampleProject.Api
                 app.UseDeveloperExceptionPage();
             }
 
+            app.UseCors(x => x
+                .SetIsOriginAllowedToAllowWildcardSubdomains()
+                .AllowAnyMethod()
+                .AllowAnyHeader()
+                .SetIsOriginAllowed(origin => true) // allow any origin
+                .AllowCredentials());
+            app.UseMiddleware<CorsMiddleware>();
+
             app.UseHttpsRedirection();
 
             app.UseRouting();
 
             app.UseAuthentication();
             app.UseAuthorization();
-            app.UseMiddleware<JwtMiddleware>();
 
             app.UseEndpoints(endpoints =>
             {

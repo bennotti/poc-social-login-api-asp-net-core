@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
@@ -9,19 +10,23 @@ namespace SampleProject.Api.Controllers
 {
     [ApiController]
     [Route("[controller]")]
-    public class JwtAuthenticationController : ControllerBase
+    public class GoogleController : ControllerBase
     {
-        
-        private readonly ILogger<JwtAuthenticationController> _logger;
+        private static readonly string[] Summaries = new[]
+        {
+            "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
+        };
+        private readonly ILogger<GoogleController> _logger;
         private readonly Random _random;
 
-        public JwtAuthenticationController(Random random, ILogger<JwtAuthenticationController> logger)
+        public GoogleController(Random random, ILogger<GoogleController> logger)
         {
             _logger = logger;
             _random = random;
         }
 
         [HttpGet]
+        [Authorize(AuthenticationSchemes ="Google")]
         public IEnumerable<WeatherForecast> Get()
         {
             _logger.LogInformation("Obtendo WeatherForecast");
