@@ -1,42 +1,64 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using SampleProject.Core.Dto;
+using SampleProject.Core.Settings;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using static Google.Apis.Auth.GoogleJsonWebSignature;
 
 namespace SampleProject.Api.Controllers
 {
     [ApiController]
-    [Route("[controller]")]
+    [Route("api/credencial/google")]
     public class GoogleController : ControllerBase
     {
-        private static readonly string[] Summaries = new[]
+        private readonly GoogleApiAuthSettings _googleApiAuthSettings;
+        public GoogleController(GoogleApiAuthSettings googleApiAuthSettings)
         {
-            "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-        };
-        private readonly ILogger<GoogleController> _logger;
-        private readonly Random _random;
-
-        public GoogleController(Random random, ILogger<GoogleController> logger)
-        {
-            _logger = logger;
-            _random = random;
+            _googleApiAuthSettings = googleApiAuthSettings;
         }
-
-        [HttpGet]
-        [Authorize(AuthenticationSchemes ="Google")]
-        public IEnumerable<WeatherForecast> Get()
+        [HttpPost]
+        [Route("validar")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ObterPorCodigo([FromBody]CredencialGoogleValidarRequestDto bodyRequest)
         {
-            _logger.LogInformation("Obtendo WeatherForecast");
-            return Enumerable.Range(1, 5).Select(index => new WeatherForecast
+            await Task.CompletedTask;
+            Payload payload = null;
+            try
             {
-                Date = DateTime.Now.AddDays(index),
-                TemperatureC = _random.Next(-20, 55),
-                Summary = Summaries[_random.Next(Summaries.Length)]
-            })
-            .ToArray();
+                payload = await ValidateAsync(bodyRequest.IdToken, new ValidationSettings
+                {
+                    Audience = new[] { _googleApiAuthSettings.ClientId }
+                });
+                // It is important to add your ClientId as an audience in order to make sure
+                // that the token is for your application!
+            }
+            catch
+            {
+                // Invalid token
+            }
+            if (payload == null)
+            {
+                return BadRequest();
+            }
+
+            return Ok(payload);
+        }
+        public async Task<string> GenerateToken(UserDto user)
+        {
+            await Task.CompletedTask;
+            //var claims = await GetUserClaims(user);
+            return "";
+        }
+        public async Task<UserDto> GetOrCreateExternalLoginUser(string provider, string key, string email, string firstName, string lastName)
+        {
+            await Task.CompletedTask;
+            return new UserDto {
+                Name = ($"{firstName} {lastName}").Trim(),
+            };
         }
     }
 }

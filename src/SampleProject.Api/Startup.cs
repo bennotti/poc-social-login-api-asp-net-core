@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.HttpsPolicy;
 using Microsoft.AspNetCore.Mvc;
@@ -31,49 +32,64 @@ namespace SampleProject.Api
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddControllers();
-            services.AddTransient<Random>();
-
-            services.Configure<ForwardedHeadersOptions>(options =>
-            {
-                options.ForwardedHeaders =
-                    ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+            services.AddMvc().AddJsonOptions(options => {
+                options.JsonSerializerOptions.IgnoreNullValues = true;
+                options.JsonSerializerOptions.WriteIndented = true;
             });
-            services.AddCors();
+            services.Configure<ApiBehaviorOptions>(opt =>
+            {
+                opt.SuppressModelStateInvalidFilter = true;
+            });
+
+            services.AddControllers();
+            services.AddRouting(options => options.LowercaseUrls = true);
+            services.AddControllersWithViews();
+
+            services.AddTransient<Random>();
+            services.AddMemoryCache();
+            services.AddOptions();
 
             var jwtSettings = new JwtSettings();
             new ConfigureFromConfigurationOptions<JwtSettings>(Configuration.GetSection("JwtSettings")).Configure(jwtSettings);
             services.AddSingleton(jwtSettings);
             var key = Encoding.ASCII.GetBytes(jwtSettings.Secret);
 
-            services.AddAuthorization(options =>
-            {
-                options.DefaultPolicy = new AuthorizationPolicyBuilder()
-                    .RequireAuthenticatedUser()
-                    .AddAuthenticationSchemes("Google", "Bearer")
-                    .Build();
-            });
-            services.AddAuthentication(options => {
-                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-            })
-            .AddJwtBearer(options => {
-                options.RequireHttpsMetadata = false;
-                options.SaveToken = true;
-                options.TokenValidationParameters = new TokenValidationParameters
-                {
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(key),
-                    ValidateIssuer = false,
-                    ValidateAudience = false
-                };
-            })
-            .AddGoogle("Google",googleOptions =>
-            {
-                //googleOptions.SignInScheme = "Google";
-                googleOptions.ClientId = "";
-                googleOptions.ClientSecret = "";
-            });
+            var googleApiAuthSettings = new GoogleApiAuthSettings();
+            new ConfigureFromConfigurationOptions<GoogleApiAuthSettings>(Configuration.GetSection("GoogleApiAuthSettings")).Configure(googleApiAuthSettings);
+            services.AddSingleton(googleApiAuthSettings);
+
+            //services.AddAuthorization(options =>
+            //{
+            //    options.DefaultPolicy = new AuthorizationPolicyBuilder()
+            //        .RequireAuthenticatedUser()
+            //        .AddAuthenticationSchemes("Google", "Bearer")
+            //        .Build();
+            //});
+            //services.AddAuthentication(options =>
+            //{
+            //    options.DefaultAuthenticateScheme = GoogleDefaults.AuthenticationScheme;
+            //    options.DefaultChallengeScheme = GoogleDefaults.AuthenticationScheme;
+            //})
+            //services.AddAuthentication(options => {
+            //    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+            //    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            //})
+            //.AddJwtBearer(options => {
+            //    options.RequireHttpsMetadata = false;
+            //    options.SaveToken = true;
+            //    options.TokenValidationParameters = new TokenValidationParameters
+            //    {
+            //        ValidateIssuerSigningKey = true,
+            //        IssuerSigningKey = new SymmetricSecurityKey(key),
+            //        ValidateIssuer = false,
+            //        ValidateAudience = false
+            //    };
+            //})
+            //.AddGoogle(googleOptions =>
+            //{
+            //    googleOptions.ClientId = "313436658109-svgi01vj181q1o57iacetbg25amiuisv.apps.googleusercontent.com";
+            //    googleOptions.ClientSecret = "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";
+            //});
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -92,6 +108,7 @@ namespace SampleProject.Api
                 .AllowCredentials());
             app.UseMiddleware<CorsMiddleware>();
 
+            app.UseForwardedHeaders();
             app.UseHttpsRedirection();
 
             app.UseRouting();
@@ -101,6 +118,14 @@ namespace SampleProject.Api
 
             app.UseEndpoints(endpoints =>
             {
+                endpoints.MapGet("/", async context =>
+                {
+                    await context.Response.WriteAsync("Running service");
+                });
+                endpoints.MapGet("/health/status", async context =>
+                {
+                    await context.Response.WriteAsync("OK");
+                });
                 endpoints.MapControllers();
             });
         }
